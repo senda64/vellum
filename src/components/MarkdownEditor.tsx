@@ -7,7 +7,6 @@ import {
   highlightActiveLineGutter,
   lineNumbers,
   drawSelection,
-  scrollPastEnd,
 } from "@codemirror/view";
 import {
   defaultKeymap,
@@ -15,7 +14,7 @@ import {
   historyKeymap,
   indentWithTab,
 } from "@codemirror/commands";
-import { markdown } from "@codemirror/lang-markdown";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { search, searchKeymap, highlightSelectionMatches } from "@codemirror/search";
 import {
   bracketMatching,
@@ -47,7 +46,8 @@ const editorTheme = EditorView.theme({
   },
   ".cm-content": {
     caretColor: "#111",
-    padding: "0.75rem 0 2rem",
+    // ~2 lines (line-height 1.55) so first/last lines can sit near mid without a full-viewport past-end.
+    padding: "3.1em 0",
   },
   ".cm-gutters": {
     backgroundColor: "#fafafa",
@@ -94,7 +94,7 @@ export default function MarkdownEditor({ doc, onChange, onReady, onScroll }: Pro
         highlightSelectionMatches(),
         search({ top: true }),
         syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
-        markdown(),
+        markdown({ base: markdownLanguage }),
         keymap.of([
           indentWithTab,
           ...defaultKeymap,
@@ -104,7 +104,6 @@ export default function MarkdownEditor({ doc, onChange, onReady, onScroll }: Pro
         ]),
         editorTheme,
         EditorView.lineWrapping,
-        scrollPastEnd(),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString());

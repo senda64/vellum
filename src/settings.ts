@@ -166,6 +166,61 @@ export function buildPageCss(settings: PageSettings): string {
   margin: 0.6em 0;
 }
 
+.vellum-doc table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0;
+  font-size: 0.95em;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.vellum-doc th,
+.vellum-doc td {
+  border: 1px solid #ccc;
+  padding: 0.35em 0.55em;
+  text-align: left;
+  vertical-align: top;
+}
+
+.vellum-doc th {
+  background: #f5f5f5;
+  font-weight: 600;
+}
+
+.vellum-doc del,
+.vellum-doc s {
+  text-decoration: line-through;
+  color: #555;
+}
+
+.vellum-doc .task-list-item {
+  list-style: none;
+  margin-left: -1.35em;
+  padding-left: 0;
+}
+
+.vellum-doc .task-list-item input[type="checkbox"] {
+  margin: 0 0.45em 0 0;
+  vertical-align: middle;
+}
+
+.vellum-doc ul.contains-task-list {
+  padding-left: 1.35em;
+}
+
+.vellum-doc .katex-display {
+  margin: 0.6em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.vellum-doc .katex {
+  font-size: 1.05em;
+}
+
 .vellum-empty {
   min-height: 1em;
 }

@@ -6,6 +6,7 @@ import { openProject, saveMainMarkdown, supportsDirectoryPicker } from "./fs";
 import { buildAnchorMap } from "./markdown/render";
 import type { FragmentMap } from "./markdown/types";
 import { DEFAULT_SETTINGS, parseSettings, type PageSettings } from "./settings";
+import { buildCenterScrollMap, type CenterScrollMap } from "./sync/centerMap";
 import {
   logicalFromEditor,
   logicalFromPreview,
@@ -21,17 +22,79 @@ type SyncOrigin = "editor" | "preview" | null;
 
 const PREVIEW_DEBOUNCE_MS = 280;
 
+function buildStressH1Markdown(count: number): string {
+  const lines: string[] = [
+    `# Stress: ${count} consecutive H1 headings`,
+    "",
+    "Edge-case document for scroll-sync alignment checks.",
+    "",
+  ];
+  for (let i = 1; i <= count; i++) {
+    lines.push(`# H1-${i}`);
+  }
+
+  lines.push(
+    "",
+    "# GFM + TeX sample",
+    "",
+    "This section exercises **GitHub Flavored Markdown** and TeX math after the H1 stress block.",
+    "",
+    "## Task list",
+    "",
+    "- [x] Tables and strikethrough",
+    "- [x] Autolinked URL: https://github.github.com/gfm/",
+    "- [ ] Inline math $E = mc^2$",
+    "- [ ] Display math below",
+    "",
+    "## Table",
+    "",
+    "| Symbol | Meaning |",
+    "| --- | --- |",
+    "| $\\alpha$ | angle of attack |",
+    "| $\\beta$ | sideslip |",
+    "| ~~legacy~~ | superseded |",
+    "",
+    "## Strikethrough & emphasis",
+    "",
+    "Use ~~old notation~~ and keep *new* **GFM** features together with math.",
+    "",
+    "## Inline TeX",
+    "",
+    "The quadratic formula is $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$.",
+    "",
+    "## Display TeX",
+    "",
+    "$$",
+    "\\int_{-\\infty}^{\\infty} e^{-x^2} \\, dx = \\sqrt{\\pi}",
+    "$$",
+    "",
+    "$$",
+    "\\begin{aligned}",
+    "\\nabla \\cdot \\mathbf{E} &= \\frac{\\rho}{\\varepsilon_0} \\\\",
+    "\\nabla \\cdot \\mathbf{B} &= 0 \\\\",
+    "\\nabla \\times \\mathbf{E} &= -\\frac{\\partial \\mathbf{B}}{\\partial t} \\\\",
+    "\\nabla \\times \\mathbf{B} &= \\mu_0 \\mathbf{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}",
+    "\\end{aligned}",
+    "$$",
+    "",
+  );
+
+  return lines.join("\n");
+}
+
 export default function App() {
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
   const editorViewRef = useRef<EditorView | null>(null);
   const previewHandleRef = useRef<PagePreviewHandle | null>(null);
   const fragmentMapRef = useRef<FragmentMap | null>(null);
+  const centerMapRef = useRef<CenterScrollMap | null>(null);
   const layoutReadyRef = useRef(false);
   const syncOriginRef = useRef<SyncOrigin>(null);
   const syncUnlockTimerRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const pendingOriginRef = useRef<SyncOrigin>(null);
   const previewTimerRef = useRef<number | null>(null);
+  const panesRef = useRef<HTMLDivElement | null>(null);
 
   const [content, setContent] = useState("");
   const [previewSource, setPreviewSource] = useState("");
@@ -61,18 +124,31 @@ export default function App() {
     }, 160);
   }, []);
 
+  const rebuildCenterMap = useCallback(() => {
+    const view = editorViewRef.current;
+    const preview = getPreviewEl();
+    const fragMap = fragmentMapRef.current;
+    if (!view || !preview || !fragMap || fragMap.ordered.length === 0) {
+      centerMapRef.current = null;
+      return null;
+    }
+    const next = buildCenterScrollMap(view, preview, fragMap);
+    centerMapRef.current = next;
+    return next;
+  }, [getPreviewEl]);
+
   const runSync = useCallback((origin: Exclude<SyncOrigin, null>) => {
     if (!layoutReadyRef.current) return;
     const view = editorViewRef.current;
     const preview = getPreviewEl();
-    const map = fragmentMapRef.current;
-    if (!view || !preview || !map || map.ordered.length === 0) return;
+    const scrollMap = centerMapRef.current;
+    if (!view || !preview || !scrollMap) return;
 
     lockSync(origin);
     if (origin === "editor") {
-      syncPreviewFromEditor(view, preview, map);
+      syncPreviewFromEditor(view, preview, scrollMap);
     } else {
-      syncEditorFromPreview(view, preview, map);
+      syncEditorFromPreview(view, preview, scrollMap);
     }
   }, [getPreviewEl, lockSync]);
 
@@ -102,22 +178,50 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("demo") !== "1") return;
+    const demo = params.get("demo");
+    if (!demo) return;
 
     fileHandleRef.current = null;
     setSettings(parseSettings(JSON.stringify(demoSettingsJson)));
-    setContent(demoMarkdown);
-    setPreviewSource(demoMarkdown);
+    const markdown =
+      demo === "stress-h1" || demo === "stress-h1-1000"
+        ? buildStressH1Markdown(1000)
+        : demoMarkdown;
+    setContent(markdown);
+    setPreviewSource(markdown);
     setHasFile(true);
     setStatus("saved");
     layoutReadyRef.current = false;
     fragmentMapRef.current = null;
+    centerMapRef.current = null;
   }, []);
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("demo") !== "1") return;
+    const panes = panesRef.current;
+    if (!panes) return;
+    let timer: number | null = null;
+    const ro = new ResizeObserver(() => {
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        if (!layoutReadyRef.current) return;
+        rebuildCenterMap();
+        runSync("editor");
+      }, 80);
+    });
+    ro.observe(panes);
+    return () => {
+      ro.disconnect();
+      if (timer != null) window.clearTimeout(timer);
+    };
+  }, [hasFile, rebuildCenterMap, runSync]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const demo = params.get("demo");
+    if (!demo) return;
     const api = {
-      ready: () => layoutReadyRef.current,
+      ready: () => layoutReadyRef.current && !!centerMapRef.current,
       getScroll: () => {
         const view = editorViewRef.current;
         const preview = getPreviewEl();
@@ -143,6 +247,15 @@ export default function App() {
           fromEditor: logicalFromEditor(view, map.blocks),
           fromPreview: logicalFromPreview(preview, map),
           fragCount: map.ordered.length,
+        };
+      },
+      getCenterMap: () => {
+        const m = centerMapRef.current;
+        if (!m) return null;
+        return {
+          editorMax: m.editorMax,
+          previewMax: m.previewMax,
+          anchors: m.editor.length,
         };
       },
       scrollEditor: (y: number) => {
@@ -191,6 +304,7 @@ export default function App() {
       setStatus("saved");
       layoutReadyRef.current = false;
       fragmentMapRef.current = null;
+      centerMapRef.current = null;
     } finally {
       setBusy(false);
     }
@@ -225,21 +339,25 @@ export default function App() {
   }
 
   function handleLayoutStart() {
-    layoutReadyRef.current = false;
-    fragmentMapRef.current = null;
+    // Keep the previous fragment map and sync active until the new layout
+    // swaps in — avoids blank preview and sync dead-zones while paging.
     setLayoutUpdating(true);
   }
 
   function handleLayoutReady(map: FragmentMap) {
-    fragmentMapRef.current = map;
-    layoutReadyRef.current = map.ordered.length > 0;
+    if (map.ordered.length > 0) {
+      fragmentMapRef.current = map;
+      layoutReadyRef.current = true;
+      rebuildCenterMap();
+    }
     setLayoutUpdating(false);
 
     const view = editorViewRef.current;
     const preview = getPreviewEl();
-    if (view && preview && layoutReadyRef.current) {
+    const scrollMap = centerMapRef.current;
+    if (view && preview && scrollMap && layoutReadyRef.current) {
       lockSync("editor");
-      syncPreviewFromEditor(view, preview, map);
+      syncPreviewFromEditor(view, preview, scrollMap);
     }
   }
 
@@ -296,7 +414,7 @@ export default function App() {
         )}
 
         {hasFile ? (
-          <div className="panes">
+          <div className="panes" ref={panesRef}>
             <section className="pane pane-editor" aria-label="Markdown editor">
               <MarkdownEditor
                 doc={content}
@@ -304,6 +422,10 @@ export default function App() {
                 onScroll={handleEditorScroll}
                 onReady={(view) => {
                   editorViewRef.current = view;
+                  if (layoutReadyRef.current && fragmentMapRef.current) {
+                    rebuildCenterMap();
+                    runSync("editor");
+                  }
                 }}
               />
             </section>

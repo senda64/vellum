@@ -1,7 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { AnchorBlock, FragmentMap } from "../markdown/types";
 import { buildFragmentMap } from "../paged/fragments";
-import { destroyPagedPreview, renderPagedPreview } from "../paged/layout";
+import {
+  destroyPagedPreview,
+  disposeStalePreviewer,
+  renderPagedPreview,
+} from "../paged/layout";
 import type { PageSettings } from "../settings";
 
 export type PagePreviewHandle = {
@@ -27,13 +31,15 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
 ) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
-  const renderRef = useRef<HTMLDivElement | null>(null);
+  const visibleRef = useRef<HTMLDivElement | null>(null);
+  const bufferRef = useRef<HTMLDivElement | null>(null);
   const generationRef = useRef(0);
   const scaleRef = useRef(1);
   const onScrollRef = useRef(onScroll);
   const onLayoutStartRef = useRef(onLayoutStart);
   const onLayoutReadyRef = useRef(onLayoutReady);
   const blocksRef = useRef(blocks);
+  const hasVisibleRef = useRef(false);
 
   onScrollRef.current = onScroll;
   onLayoutStartRef.current = onLayoutStart;
@@ -58,27 +64,24 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
 
   useEffect(() => {
     const generation = ++generationRef.current;
-    const renderTo = renderRef.current;
+    const buffer = bufferRef.current;
+    const visible = visibleRef.current;
     const stage = stageRef.current;
     const scroll = scrollRef.current;
-    if (!renderTo || !stage || !scroll) return;
+    if (!buffer || !visible || !stage || !scroll) return;
 
     let cancelled = false;
     onLayoutStartRef.current?.();
     setLayoutError(null);
 
-    // Layout must run at scale=1; React state updates are async, so force DOM now.
-    scaleRef.current = 1;
-    stage.style.transform = "none";
-    stage.style.width = "auto";
-
+    // Keep the on-screen stage as-is (no clear / no unscale) while we layout
+    // into the offscreen buffer, then swap atomically.
     (async () => {
       try {
-        await renderPagedPreview(html, settings, renderTo);
+        await renderPagedPreview(html, settings, buffer);
         if (cancelled || generation !== generationRef.current) return;
 
-        // Defense: concurrent layouts can leave duplicate page trees.
-        const pageRoots = renderTo.querySelectorAll(".pagedjs_pages");
+        const pageRoots = buffer.querySelectorAll(".pagedjs_pages");
         if (pageRoots.length > 1) {
           pageRoots.forEach((node, index) => {
             if (index < pageRoots.length - 1) node.remove();
@@ -86,11 +89,30 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
         }
 
         await nextFrame();
+        if (cancelled || generation !== generationRef.current) return;
 
-        const width = Math.max(renderTo.scrollWidth, renderTo.offsetWidth);
-        const height = Math.max(renderTo.scrollHeight, renderTo.offsetHeight);
+        const width = Math.max(buffer.scrollWidth, buffer.offsetWidth);
+        const height = Math.max(buffer.scrollHeight, buffer.offsetHeight);
+        if (width <= 0 || height <= 0) {
+          // Empty / failed buffer — leave the previous preview on screen.
+          onLayoutReadyRef.current?.({
+            blocks: blocksRef.current,
+            ordered: [],
+            byBlock: new Map(),
+          });
+          return;
+        }
+
         const available = Math.max(120, scroll.clientWidth - 48);
         const nextScale = Math.min(1, available / Math.max(1, width));
+        const scrollTop = scroll.scrollTop;
+        const prevMax = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+        const scrollRatio = prevMax > 0 ? scrollTop / prevMax : 0;
+
+        // Atomic swap: move new pages into the visible root.
+        visible.replaceChildren(...Array.from(buffer.childNodes));
+        buffer.replaceChildren();
+        hasVisibleRef.current = visible.childNodes.length > 0;
 
         scaleRef.current = nextScale;
         stage.style.width = `${width}px`;
@@ -100,20 +122,32 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
         setStageSize({ width, height });
         setScale(nextScale);
 
+        // Drop previous paged.js styles only after the new pages are visible.
+        disposeStalePreviewer();
+
         await nextFrame();
         await nextFrame();
         if (cancelled || generation !== generationRef.current) return;
+
+        const nextMax = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+        scroll.scrollTop = scrollRatio * nextMax;
 
         const map = buildFragmentMap(scroll, blocksRef.current);
         onLayoutReadyRef.current?.(map);
       } catch (err) {
         if (cancelled || generation !== generationRef.current) return;
         setLayoutError(err instanceof Error ? err.message : "Page layout failed.");
-        onLayoutReadyRef.current?.({
-          blocks: blocksRef.current,
-          ordered: [],
-          byBlock: new Map(),
-        });
+        if (!hasVisibleRef.current) {
+          onLayoutReadyRef.current?.({
+            blocks: blocksRef.current,
+            ordered: [],
+            byBlock: new Map(),
+          });
+        } else {
+          // Keep previous preview; clear "updating" via a map rebuild.
+          const map = buildFragmentMap(scroll, blocksRef.current);
+          onLayoutReadyRef.current?.(map);
+        }
       }
     })();
 
@@ -173,10 +207,12 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
           }}
         >
           <div className="pages-stage" ref={stageRef}>
-            <div className="pages-render" ref={renderRef} />
+            <div className="pages-render" ref={visibleRef} />
           </div>
         </div>
       </div>
+      {/* Offscreen layout target — kept in-document so Paged.js can measure. */}
+      <div className="pages-render pages-render-buffer" ref={bufferRef} aria-hidden="true" />
     </div>
   );
 });

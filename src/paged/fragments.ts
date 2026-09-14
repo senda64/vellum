@@ -85,59 +85,6 @@ function contentHeight(frags: AnchorFragment[]): number {
   );
 }
 
-/** Total content height across all blocks (page gaps excluded). */
-export function totalContentHeight(map: FragmentMap): number {
-  let total = 0;
-  for (const block of map.blocks) {
-    total += contentHeight(map.byBlock.get(block.id) ?? []);
-  }
-  return Math.max(1, total);
-}
-
-/**
- * Document progress in gap-collapsed content space.
- * Page margins / inter-page gaps do not advance this offset.
- */
-export function collapsedOffsetFromLogical(
-  map: FragmentMap,
-  blockId: string,
-  relativePosition: number,
-): number | null {
-  let offset = 0;
-  for (const block of map.blocks) {
-    const h = contentHeight(map.byBlock.get(block.id) ?? []);
-    if (block.id === blockId) {
-      return offset + Math.min(1, Math.max(0, relativePosition)) * h;
-    }
-    offset += h;
-  }
-  return null;
-}
-
-export function logicalFromCollapsedOffset(
-  map: FragmentMap,
-  offset: number,
-): { blockId: string; relativePosition: number } | null {
-  if (map.blocks.length === 0) return null;
-
-  let remaining = Math.max(0, offset);
-  for (let i = 0; i < map.blocks.length; i++) {
-    const block = map.blocks[i]!;
-    const h = contentHeight(map.byBlock.get(block.id) ?? []);
-    const isLast = i === map.blocks.length - 1;
-    if (remaining <= h || isLast) {
-      return {
-        blockId: block.id,
-        relativePosition: Math.min(1, Math.max(0, remaining / h)),
-      };
-    }
-    remaining -= h;
-  }
-
-  const last = map.blocks[map.blocks.length - 1]!;
-  return { blockId: last.id, relativePosition: 1 };
-}
-
 /**
  * Map logical position → preview content Y using content height only.
  * Page gaps between fragments are skipped (not part of the document).

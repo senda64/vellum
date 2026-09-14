@@ -163,6 +163,7 @@ button:disabled {
   overflow: auto;
   padding: 0;
   background: #e8e8e8;
+  position: relative;
 }
 
 .pages-sizer {
@@ -183,6 +184,15 @@ button:disabled {
 
 .pages-render {
   display: block;
+}
+
+/* Offscreen buffer for double-buffered Paged.js layout */
+.pages-render-buffer {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Distinct sheets with gaps (not continuous HTML) */

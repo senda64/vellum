@@ -1,8 +1,11 @@
 import { Previewer } from "pagedjs";
 import { buildPageCss, type PageSettings } from "../settings";
+import katexCss from "katex/dist/katex.min.css?inline";
 
 let activePreviewer: Previewer | null = null;
+let stalePreviewer: Previewer | null = null;
 let queue: Promise<unknown> = Promise.resolve();
+let jobId = 0;
 
 /**
  * Paged.js keeps ResizeObservers on each page after layout. Those fire on
@@ -21,32 +24,42 @@ function disarmPreviewer(previewer: Previewer): void {
   }
 }
 
-function cleanupPreviewer(): void {
-  if (activePreviewer) {
-    try {
-      disarmPreviewer(activePreviewer);
-      activePreviewer.polisher.destroy();
-    } catch {
-      // ignore cleanup errors
-    }
-    activePreviewer = null;
+function destroyPreviewer(previewer: Previewer | null): void {
+  if (!previewer) return;
+  try {
+    disarmPreviewer(previewer);
+    previewer.polisher.destroy();
+  } catch {
+    // ignore
   }
-  document
-    .querySelectorAll("style[data-pagedjs-inserted-styles]")
-    .forEach((el) => el.remove());
 }
 
 /**
- * Serialize paged renders. Concurrent Previewer.preview() calls (e.g. React
- * StrictMode double-mount) otherwise append duplicate .pagedjs_pages trees.
+ * Drop polishers that are no longer backing visible DOM.
+ * Call after the new pages have been swapped into view.
+ */
+export function disposeStalePreviewer(): void {
+  if (!stalePreviewer) return;
+  destroyPreviewer(stalePreviewer);
+  stalePreviewer = null;
+}
+
+/**
+ * Serialize paged renders into `renderTo` without touching any other DOM.
+ * Previous previewer's styles stay until `disposeStalePreviewer()` so the
+ * on-screen buffer can keep looking correct until swap.
  */
 export function renderPagedPreview(
   html: string,
   settings: PageSettings,
   renderTo: HTMLElement,
 ): Promise<{ pageCount: number }> {
+  const myJob = ++jobId;
+
   const task = queue.then(async () => {
-    cleanupPreviewer();
+    // Superseded while waiting in the queue.
+    if (myJob !== jobId) return { pageCount: 0 };
+
     renderTo.replaceChildren();
 
     const content = document.createElement("div");
@@ -55,25 +68,28 @@ export function renderPagedPreview(
 
     const css = buildPageCss(settings);
     const previewer = new Previewer();
-    activePreviewer = previewer;
 
     const flow = await previewer.preview(
       content,
-      [{ "vellum-page.css": css }],
+      [{ "vellum-page.css": css }, { "katex.css": katexCss }],
       renderTo,
     );
 
-    // Guard against a stale previewer finishing after a newer clear.
-    if (activePreviewer !== previewer) {
-      try {
-        disarmPreviewer(previewer);
-      } catch {
-        // ignore
-      }
+    // A newer job started while we were laying out — discard this result.
+    if (myJob !== jobId) {
+      destroyPreviewer(previewer);
+      renderTo.replaceChildren();
       return { pageCount: 0 };
     }
 
     disarmPreviewer(previewer);
+
+    // Keep the previous previewer alive until the caller swaps DOM.
+    if (activePreviewer && activePreviewer !== previewer) {
+      destroyPreviewer(stalePreviewer);
+      stalePreviewer = activePreviewer;
+    }
+    activePreviewer = previewer;
 
     return {
       pageCount: flow?.total ?? renderTo.querySelectorAll(".pagedjs_page").length,
@@ -89,5 +105,12 @@ export function renderPagedPreview(
 }
 
 export function destroyPagedPreview(): void {
-  cleanupPreviewer();
+  jobId += 1;
+  destroyPreviewer(stalePreviewer);
+  stalePreviewer = null;
+  destroyPreviewer(activePreviewer);
+  activePreviewer = null;
+  document
+    .querySelectorAll("style[data-pagedjs-inserted-styles]")
+    .forEach((el) => el.remove());
 }

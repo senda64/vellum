@@ -1,15 +1,34 @@
 import MarkdownIt from "markdown-it";
+import taskLists from "markdown-it-task-lists";
+import markdownItKatexImport from "@vscode/markdown-it-katex";
 import type { AnchorBlock, AnchorMap } from "./types";
 
-type Token = ReturnType<InstanceType<typeof MarkdownIt>["parse"]>[number];
+type MarkdownItInstance = InstanceType<typeof MarkdownIt>;
+type Token = ReturnType<MarkdownItInstance["parse"]>[number];
 
+function unwrapPlugin(
+  mod: unknown,
+): (md: MarkdownItInstance, options?: object) => void {
+  let cur: unknown = mod;
+  while (cur && typeof cur === "object" && "default" in cur) {
+    cur = (cur as { default: unknown }).default;
+  }
+  if (typeof cur !== "function") {
+    throw new Error("Failed to load @vscode/markdown-it-katex");
+  }
+  return cur as (md: MarkdownItInstance, options?: object) => void;
+}
+
+/** GFM + TeX ($…$ / $$…$$) via KaTeX. */
 const md = new MarkdownIt({
   html: false,
   linkify: true,
   breaks: false,
-});
+})
+  .use(taskLists, { enabled: false, label: true })
+  .use(unwrapPlugin(markdownItKatexImport), { throwOnError: false, errorColor: "#cc0000" });
 
-const VOID_BLOCKS = new Set(["fence", "code_block", "hr", "html_block"]);
+const VOID_BLOCKS = new Set(["fence", "code_block", "hr", "html_block", "math_block"]);
 
 function lineStartOffsets(source: string): number[] {
   const offsets = [0];

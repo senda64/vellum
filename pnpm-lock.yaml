@@ -29,12 +29,21 @@ importers:
       '@codemirror/view':
         specifier: ^6.43.11
         version: 6.43.11
+      '@vscode/markdown-it-katex':
+        specifier: ^1.1.2
+        version: 1.1.2
       codemirror:
         specifier: ^6.0.2
         version: 6.0.2
+      katex:
+        specifier: ^0.18.7
+        version: 0.18.7
       markdown-it:
         specifier: ^15.0.2
         version: 15.0.2
+      markdown-it-task-lists:
+        specifier: ^2.1.1
+        version: 2.1.1
       pagedjs:
         specifier: ^0.4.3
         version: 0.4.3
@@ -45,6 +54,9 @@ importers:
         specifier: ^19.1.0
         version: 19.3.0(react@19.3.0)
     devDependencies:
+      '@types/markdown-it':
+        specifier: ^14.2.0
+        version: 14.2.0
       '@types/react':
         specifier: ^19.1.2
         version: 19.3.0
@@ -532,6 +544,15 @@ packages:
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
+  '@types/linkify-it@5.0.0':
+    resolution: {integrity: sha512-sVDA58zAw4eWAffKOaQH5/5j3XeayukzDk+ewSsnv3p4yJEZHCCzMDiZM8e0OUrRvmpGZ85jf4yDHkHsgBNr9Q==}
+
+  '@types/markdown-it@14.2.0':
+    resolution: {integrity: sha512-NoQ2yGlLWj4wpxMs+TYmRKk3thDrQ97agr7sFqfLsAlvoS8SNQuTrlObhFqG9iugdTtgOE9jpJ6FNM4ZGsa5xQ==}
+
+  '@types/mdurl@2.0.0':
+    resolution: {integrity: sha512-RGdgjQUZba5p6QEFAVx2OGb8rQDL/cPRG7GiedRzMcJ1tYnUANBncjbSB1NRGwbvjcPeikRABz2nshyPk1bhWg==}
+
   '@types/react-dom@19.3.0':
     resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
     peerDependencies:
@@ -545,6 +566,9 @@ packages:
     engines: {node: ^14.18.0 || >=16.0.0}
     peerDependencies:
       vite: ^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0
+
+  '@vscode/markdown-it-katex@1.1.2':
+    resolution: {integrity: sha512-+4IIv5PgrmhKvW/3LpkpkGg257OViEhXkOOgCyj5KMsjsOfnRXkni8XAuuF9Ui5p3B8WnUovlDXAQNb8RJ/RaQ==}
 
   argparse@3.0.2:
     resolution: {integrity: sha512-mFdDM6WqWKraGLsVb+C9CahPnzTXOefAOLq3jYcca2YZ8bEWpr++Tzj+zSaKW9+X9L5uSxcm1AZ3Y6aZJ09OhQ==}
@@ -567,6 +591,14 @@ packages:
 
   codemirror@6.0.2:
     resolution: {integrity: sha512-VhydHotNW5w1UGK0Qj96BwSk/Zqbp9WbnyK2W/eVMv4QyF41INRGpjUhFJY7/uDNuudSc33a/PKr4iDqRduvHw==}
+
+  commander@15.0.0:
+    resolution: {integrity: sha512-z67u4ZhzCL/Tydu1lJARtEZYWbWaN7oYLHbsuzocr6y4N6WZAagG3RQ4FW61V1/0+jImpj293XfrcYnd1qxtPg==}
+    engines: {node: '>=22.12.0'}
+
+  commander@8.3.0:
+    resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
+    engines: {node: '>= 12'}
 
   convert-source-map@2.0.0:
     resolution: {integrity: sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==}
@@ -666,11 +698,22 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
+  katex@0.16.47:
+    resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
+    hasBin: true
+
+  katex@0.18.7:
+    resolution: {integrity: sha512-h+UCwkZ+4Jz8WQ7MLGfj7UVFrRCizGb912fwF4luGdYsC5paYG1vx+jy+KRcC/XkpjGva/P7nAWuxNnPzRvzHw==}
+    hasBin: true
+
   linkify-it@6.1.0:
     resolution: {integrity: sha512-wJ/TwpSDTLepCrQoYWYIExIKg5Zchex2Nn5yk2mFnB+6PtdkHtyLx742md9csRjjOnGkKIS/RrbY7l8D6gT9Vw==}
 
   lru-cache@5.1.1:
     resolution: {integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==}
+
+  markdown-it-task-lists@2.1.1:
+    resolution: {integrity: sha512-TxFAc76Jnhb2OUu+n3yz9RMu4CwGfaT788br6HhEDlvWfdeJcLUsxk1Hgw2yJio0OXsxv7pyIPmvECY7bMbluA==}
 
   markdown-it@15.0.2:
     resolution: {integrity: sha512-q4IGxMv56jCqT4OCRCADBoDP3LO4MhmTXjFbphHPXs4g3j9Xg5RDnxqN8IF/3vIWEU+VCnUq+7JUg/cfy2E6Qw==}
@@ -1263,6 +1306,15 @@ snapshots:
 
   '@types/estree@1.0.9': {}
 
+  '@types/linkify-it@5.0.0': {}
+
+  '@types/markdown-it@14.2.0':
+    dependencies:
+      '@types/linkify-it': 5.0.0
+      '@types/mdurl': 2.0.0
+
+  '@types/mdurl@2.0.0': {}
+
   '@types/react-dom@19.3.0(@types/react@19.3.0)':
     dependencies:
       '@types/react': 19.3.0
@@ -1282,6 +1334,10 @@ snapshots:
       vite: 6.4.3
     transitivePeerDependencies:
       - supports-color
+
+  '@vscode/markdown-it-katex@1.1.2':
+    dependencies:
+      katex: 0.16.47
 
   argparse@3.0.2: {}
 
@@ -1308,6 +1364,10 @@ snapshots:
       '@codemirror/search': 6.7.2
       '@codemirror/state': 6.7.4
       '@codemirror/view': 6.43.11
+
+  commander@15.0.0: {}
+
+  commander@8.3.0: {}
 
   convert-source-map@2.0.0: {}
 
@@ -1415,6 +1475,14 @@ snapshots:
 
   json5@2.2.3: {}
 
+  katex@0.16.47:
+    dependencies:
+      commander: 8.3.0
+
+  katex@0.18.7:
+    dependencies:
+      commander: 15.0.0
+
   linkify-it@6.1.0:
     dependencies:
       uc.micro: 3.0.0
@@ -1422,6 +1490,8 @@ snapshots:
   lru-cache@5.1.1:
     dependencies:
       yallist: 3.1.1
+
+  markdown-it-task-lists@2.1.1: {}
 
   markdown-it@15.0.2:
     dependencies:

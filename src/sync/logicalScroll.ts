@@ -1,13 +1,7 @@
 import type { EditorView } from "@codemirror/view";
 import type { AnchorBlock, FragmentMap, LogicalPosition } from "../markdown/types";
-import {
-  collapsedOffsetFromLogical,
-  logicalFromCollapsedOffset,
-  totalContentHeight,
-} from "../paged/fragments";
-
-/** Ease only the leading page margin into the first block (editor → preview). */
-const TOP_EDGE_PX = 96;
+import { logicalFromPreviewY, previewYFromLogical } from "../paged/fragments";
+import type { CenterScrollMap } from "./centerMap";
 
 export function editorRangeMetrics(
   view: EditorView,
@@ -85,14 +79,7 @@ export function logicalFromPreview(
   map: FragmentMap | null,
 ): LogicalPosition | null {
   if (!map || map.ordered.length === 0) return null;
-  const pMax = scrollMax(container);
-  if (pMax <= 0) {
-    return { blockId: map.blocks[0]!.id, relativePosition: 0 };
-  }
-  return logicalFromCollapsedOffset(
-    map,
-    (container.scrollTop / pMax) * totalContentHeight(map),
-  );
+  return logicalFromPreviewY(map, container.scrollTop);
 }
 
 export function applyLogicalToPreview(
@@ -101,104 +88,36 @@ export function applyLogicalToPreview(
   logical: LogicalPosition,
 ): void {
   if (!map) return;
-  const offset = collapsedOffsetFromLogical(
-    map,
-    logical.blockId,
-    logical.relativePosition,
-  );
-  if (offset == null) return;
-  const pMax = scrollMax(container);
-  const total = totalContentHeight(map);
-  const next = Math.min(pMax, Math.max(0, (offset / total) * pMax));
+  const y = previewYFromLogical(map, logical.blockId, logical.relativePosition);
+  if (y == null) return;
+  const maxScroll = scrollMax(container);
+  const next = Math.min(maxScroll, Math.max(0, y));
   if (Math.abs(container.scrollTop - next) < 0.5) return;
   container.scrollTop = next;
 }
 
 /**
- * Editor → Preview via gap-collapsed content progress.
+ * Editor → Preview via continuous center-anchor map (variable speed, no jumps).
  */
 export function syncPreviewFromEditor(
   view: EditorView,
   preview: HTMLElement,
-  map: FragmentMap,
+  scrollMap: CenterScrollMap,
 ): void {
-  const eTop = view.scrollDOM.scrollTop;
-  const eMax = scrollMax(view.scrollDOM);
-  const pMax = scrollMax(preview);
-
-  if (eMax <= 0 || pMax <= 0) {
-    preview.scrollTop = 0;
-    return;
-  }
-  if (eTop <= 0) {
-    preview.scrollTop = 0;
-    return;
-  }
-  if (eTop >= eMax) {
-    preview.scrollTop = pMax;
-    return;
-  }
-
-  const logical = logicalFromEditor(view, map.blocks);
-  if (!logical) return;
-  const offset = collapsedOffsetFromLogical(
-    map,
-    logical.blockId,
-    logical.relativePosition,
-  );
-  if (offset == null) return;
-
-  const total = totalContentHeight(map);
-  let y = (offset / total) * pMax;
-
-  const topEdge = Math.min(TOP_EDGE_PX, eMax * 0.2);
-  if (eTop < topEdge) {
-    y = (eTop / topEdge) * y;
-  }
-
-  if (Math.abs(preview.scrollTop - y) < 0.5) return;
-  preview.scrollTop = Math.min(pMax, Math.max(0, y));
+  const next = scrollMap.toPreview(view.scrollDOM.scrollTop);
+  if (Math.abs(preview.scrollTop - next) < 0.5) return;
+  preview.scrollTop = next;
 }
 
 /**
- * Preview → Editor: exact inverse of collapsed E→P mapping.
- * Same coordinate system as editor→preview to avoid mode-switch flicker.
+ * Preview → Editor via the inverse center-anchor map.
  */
 export function syncEditorFromPreview(
   view: EditorView,
   preview: HTMLElement,
-  map: FragmentMap,
+  scrollMap: CenterScrollMap,
 ): void {
-  const pTop = preview.scrollTop;
-  const pMax = scrollMax(preview);
-  const eMax = scrollMax(view.scrollDOM);
-
-  if (eMax <= 0 || pMax <= 0) {
-    view.scrollDOM.scrollTop = 0;
-    return;
-  }
-  if (pTop <= 0) {
-    if (view.scrollDOM.scrollTop !== 0) view.scrollDOM.scrollTop = 0;
-    return;
-  }
-  if (pTop >= pMax) {
-    if (Math.abs(view.scrollDOM.scrollTop - eMax) >= 0.5) {
-      view.scrollDOM.scrollTop = eMax;
-    }
-    return;
-  }
-
-  const logical = logicalFromCollapsedOffset(
-    map,
-    (pTop / pMax) * totalContentHeight(map),
-  );
-  if (!logical) return;
-
-  const block = map.blocks.find((b) => b.id === logical.blockId) ?? map.blocks[0];
-  if (!block) return;
-  const { top, height } = editorRangeMetrics(view, block.sourceStart, block.sourceEnd);
-  const next = top + Math.min(1, Math.max(0, logical.relativePosition)) * height;
-  const clamped = Math.min(eMax, Math.max(0, next));
-  if (Math.abs(view.scrollDOM.scrollTop - clamped) < 0.5) return;
-  view.scrollDOM.scrollTop = clamped;
+  const next = scrollMap.toEditor(preview.scrollTop);
+  if (Math.abs(view.scrollDOM.scrollTop - next) < 0.5) return;
+  view.scrollDOM.scrollTop = next;
 }
