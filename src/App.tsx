@@ -1,87 +1,120 @@
-import { useRef, useState, type CSSProperties } from "react";
+import { useRef, useState } from "react";
+import { openMainMarkdown, saveMainMarkdown, supportsDirectoryPicker } from "./fs";
 import "./App.css";
 
-type Blot = {
-  id: number;
-  x: number;
-  y: number;
-  size: number;
-  hue: number;
-};
-
-let blotId = 0;
+type SaveStatus = "saved" | "unsaved" | null;
 
 export default function App() {
-  const sheetRef = useRef<HTMLDivElement>(null);
-  const [blots, setBlots] = useState<Blot[]>([]);
+  const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
+  const [content, setContent] = useState("");
+  const [status, setStatus] = useState<SaveStatus>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [hasFile, setHasFile] = useState(false);
+  const supported = supportsDirectoryPicker();
 
-  function addBlot(clientX: number, clientY: number) {
-    const sheet = sheetRef.current;
-    if (!sheet) return;
-    const rect = sheet.getBoundingClientRect();
-    setBlots((prev) => [
-      ...prev.slice(-24),
-      {
-        id: ++blotId,
-        x: ((clientX - rect.left) / rect.width) * 100,
-        y: ((clientY - rect.top) / rect.height) * 100,
-        size: 12 + Math.random() * 28,
-        hue: 200 + Math.random() * 40,
-      },
-    ]);
+  async function handleOpen() {
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await openMainMarkdown();
+      if (!result.ok) {
+        if (result.reason !== "cancelled") setError(result.message);
+        return;
+      }
+      fileHandleRef.current = result.fileHandle;
+      setContent(result.content);
+      setHasFile(true);
+      setStatus("saved");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSave() {
+    const handle = fileHandleRef.current;
+    if (!handle) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await saveMainMarkdown(handle, content);
+      if (!result.ok) {
+        if (result.reason !== "cancelled") setError(result.message);
+        return;
+      }
+      setStatus("saved");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleChange(value: string) {
+    setContent(value);
+    if (hasFile) setStatus("unsaved");
   }
 
   return (
     <div className="page">
-      <div
-        ref={sheetRef}
-        className="sheet"
-        onPointerDown={(e) => {
-          if ((e.target as HTMLElement).closest("button")) return;
-          addBlot(e.clientX, e.clientY);
-        }}
-      >
+      <div className="sheet">
         <div className="grain" aria-hidden />
-        {blots.map((blot) => (
-          <span
-            key={blot.id}
-            className="blot"
-            style={
-              {
-                "--x": `${blot.x}%`,
-                "--y": `${blot.y}%`,
-                "--size": `${blot.size}vmin`,
-                "--hue": blot.hue,
-              } as CSSProperties
-            }
-          />
-        ))}
 
-        <header className="hero">
+        <header className="toolbar">
           <p className="brand">Vellum</p>
-          <h1>紙の上に、インクを落としてみる。</h1>
-          <p className="lede">
-            画面をタップするとインクが広がります。質感だけの小さなデモです。
-          </p>
-          <div className="actions">
-            <button type="button" className="primary" onClick={() => addBlot(
-              (sheetRef.current?.getBoundingClientRect().left ?? 0) +
-                (sheetRef.current?.clientWidth ?? 0) * (0.35 + Math.random() * 0.3),
-              (sheetRef.current?.getBoundingClientRect().top ?? 0) +
-                (sheetRef.current?.clientHeight ?? 0) * (0.45 + Math.random() * 0.25),
-            )}>
-              インクを落とす
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => setBlots([])}
-              disabled={blots.length === 0}
-            >
-              消す
-            </button>
+          <div className="toolbar-end">
+            <span className="status" data-state={status ?? "idle"} aria-live="polite">
+              {status === "saved" && "Saved"}
+              {status === "unsaved" && "Unsaved changes"}
+            </span>
+            <div className="actions">
+              <button
+                type="button"
+                className="primary"
+                onClick={handleOpen}
+                disabled={busy || !supported}
+              >
+                Open Folder
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={handleSave}
+                disabled={busy || !hasFile || status !== "unsaved"}
+              >
+                Save
+              </button>
+            </div>
           </div>
         </header>
+
+        <div className="editor-wrap">
+          {!supported && (
+            <p className="notice" role="alert">
+              File System Access API is required. Open this page in Chrome or Edge.
+            </p>
+          )}
+          {error && (
+            <p className="notice notice-error" role="alert">
+              {error}
+            </p>
+          )}
+          {hasFile ? (
+            <textarea
+              className="editor"
+              value={content}
+              onChange={(e) => handleChange(e.target.value)}
+              spellCheck={false}
+              aria-label="Markdown editor"
+            />
+          ) : (
+            <div className="empty">
+              <h1>Open a local folder to begin.</h1>
+              <p className="lede">
+                Choose a project folder that contains <code>main.md</code>. Edit
+                Markdown in the browser, then save it back to the same file.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

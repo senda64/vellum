@@ -1,6 +1,6 @@
 {
   "title": "Vellum",
-  "description": "紙の質感を楽しむミニデモ。インクが広がるインタラクション。",
+  "description": "ローカルフォルダの main.md を読み書きする最小Markdownエディタ。",
   "category": "app",
   "visible": true,
   "featured": false

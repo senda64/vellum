@@ -1,8 +1,10 @@
 # Vellum
 
-紙の質感を楽しむミニデモ。クリックでインクが広がります。
+ローカルフォルダを1つのドキュメントプロジェクトとして扱う Markdown エディタ（最小テスト版）。
 
 デモ: [https://senda64.github.io/vellum/](https://senda64.github.io/vellum/)
+
+Chrome / Edge で開き、`main.md` を含むフォルダを **Open Folder** で選択してください。サンプルは `example/` にあります。
 
 ## 開発
 
