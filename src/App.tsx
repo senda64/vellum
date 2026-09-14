@@ -14,6 +14,7 @@ import {
   syncPreviewFromEditor,
 } from "./sync/logicalScroll";
 import demoMarkdown from "../example/main.md?raw";
+import paperMarkdown from "../example/paper.md?raw";
 import demoSettingsJson from "../example/settings.json";
 import "./App.css";
 
@@ -21,66 +22,6 @@ type SaveStatus = "saved" | "unsaved" | null;
 type SyncOrigin = "editor" | "preview" | null;
 
 const PREVIEW_DEBOUNCE_MS = 280;
-
-function buildStressH1Markdown(count: number): string {
-  const lines: string[] = [
-    `# Stress: ${count} consecutive H1 headings`,
-    "",
-    "Edge-case document for scroll-sync alignment checks.",
-    "",
-  ];
-  for (let i = 1; i <= count; i++) {
-    lines.push(`# H1-${i}`);
-  }
-
-  lines.push(
-    "",
-    "# GFM + TeX sample",
-    "",
-    "This section exercises **GitHub Flavored Markdown** and TeX math after the H1 stress block.",
-    "",
-    "## Task list",
-    "",
-    "- [x] Tables and strikethrough",
-    "- [x] Autolinked URL: https://github.github.com/gfm/",
-    "- [ ] Inline math $E = mc^2$",
-    "- [ ] Display math below",
-    "",
-    "## Table",
-    "",
-    "| Symbol | Meaning |",
-    "| --- | --- |",
-    "| $\\alpha$ | angle of attack |",
-    "| $\\beta$ | sideslip |",
-    "| ~~legacy~~ | superseded |",
-    "",
-    "## Strikethrough & emphasis",
-    "",
-    "Use ~~old notation~~ and keep *new* **GFM** features together with math.",
-    "",
-    "## Inline TeX",
-    "",
-    "The quadratic formula is $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$.",
-    "",
-    "## Display TeX",
-    "",
-    "$$",
-    "\\int_{-\\infty}^{\\infty} e^{-x^2} \\, dx = \\sqrt{\\pi}",
-    "$$",
-    "",
-    "$$",
-    "\\begin{aligned}",
-    "\\nabla \\cdot \\mathbf{E} &= \\frac{\\rho}{\\varepsilon_0} \\\\",
-    "\\nabla \\cdot \\mathbf{B} &= 0 \\\\",
-    "\\nabla \\times \\mathbf{E} &= -\\frac{\\partial \\mathbf{B}}{\\partial t} \\\\",
-    "\\nabla \\times \\mathbf{B} &= \\mu_0 \\mathbf{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}",
-    "\\end{aligned}",
-    "$$",
-    "",
-  );
-
-  return lines.join("\n");
-}
 
 export default function App() {
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
@@ -132,16 +73,36 @@ export default function App() {
       centerMapRef.current = null;
       return null;
     }
+    // Ensure CodeMirror line metrics match the current viewport width.
+    view.requestMeasure();
     const next = buildCenterScrollMap(view, preview, fragMap);
     centerMapRef.current = next;
     return next;
   }, [getPreviewEl]);
 
+  const ensureCenterMap = useCallback(() => {
+    const view = editorViewRef.current;
+    const preview = getPreviewEl();
+    const existing = centerMapRef.current;
+    if (!view || !preview) return null;
+
+    const eMax = Math.max(0, view.scrollDOM.scrollHeight - view.scrollDOM.clientHeight);
+    const pMax = Math.max(0, preview.scrollHeight - preview.clientHeight);
+    if (
+      !existing ||
+      Math.abs(existing.editorMax - eMax) > 1 ||
+      Math.abs(existing.previewMax - pMax) > 1
+    ) {
+      return rebuildCenterMap();
+    }
+    return existing;
+  }, [getPreviewEl, rebuildCenterMap]);
+
   const runSync = useCallback((origin: Exclude<SyncOrigin, null>) => {
     if (!layoutReadyRef.current) return;
     const view = editorViewRef.current;
     const preview = getPreviewEl();
-    const scrollMap = centerMapRef.current;
+    const scrollMap = ensureCenterMap();
     if (!view || !preview || !scrollMap) return;
 
     lockSync(origin);
@@ -150,7 +111,7 @@ export default function App() {
     } else {
       syncEditorFromPreview(view, preview, scrollMap);
     }
-  }, [getPreviewEl, lockSync]);
+  }, [ensureCenterMap, getPreviewEl, lockSync]);
 
   const scheduleSync = useCallback(
     (origin: Exclude<SyncOrigin, null>) => {
@@ -184,9 +145,7 @@ export default function App() {
     fileHandleRef.current = null;
     setSettings(parseSettings(JSON.stringify(demoSettingsJson)));
     const markdown =
-      demo === "stress-h1" || demo === "stress-h1-1000"
-        ? buildStressH1Markdown(1000)
-        : demoMarkdown;
+      demo === "paper" || demo === "1" ? paperMarkdown : demoMarkdown;
     setContent(markdown);
     setPreviewSource(markdown);
     setHasFile(true);
@@ -200,7 +159,7 @@ export default function App() {
     const panes = panesRef.current;
     if (!panes) return;
     let timer: number | null = null;
-    const ro = new ResizeObserver(() => {
+    const schedule = () => {
       if (timer != null) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         timer = null;
@@ -208,8 +167,11 @@ export default function App() {
         rebuildCenterMap();
         runSync("editor");
       }, 80);
-    });
+    };
+    const ro = new ResizeObserver(schedule);
     ro.observe(panes);
+    const view = editorViewRef.current;
+    if (view) ro.observe(view.scrollDOM);
     return () => {
       ro.disconnect();
       if (timer != null) window.clearTimeout(timer);
@@ -352,13 +314,25 @@ export default function App() {
     }
     setLayoutUpdating(false);
 
-    const view = editorViewRef.current;
-    const preview = getPreviewEl();
-    const scrollMap = centerMapRef.current;
-    if (view && preview && scrollMap && layoutReadyRef.current) {
-      lockSync("editor");
-      syncPreviewFromEditor(view, preview, scrollMap);
-    }
+    const syncNow = () => {
+      const view = editorViewRef.current;
+      const preview = getPreviewEl();
+      const scrollMap = ensureCenterMap();
+      if (view && preview && scrollMap && layoutReadyRef.current) {
+        lockSync("editor");
+        syncPreviewFromEditor(view, preview, scrollMap);
+      }
+    };
+    syncNow();
+    // CodeMirror may still be settling line wraps; rebuild once metrics stabilize.
+    requestAnimationFrame(() => {
+      rebuildCenterMap();
+      syncNow();
+      window.setTimeout(() => {
+        rebuildCenterMap();
+        syncNow();
+      }, 120);
+    });
   }
 
   return (

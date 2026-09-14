@@ -129,8 +129,12 @@ export function buildCenterScrollMap(
     beforeByBlock.set(frag.blockId, before + frag.height);
 
     const rel = Math.min(1, Math.max(0, localCenter / total));
-    const e = clamp(blockTop + rel * blockHeight - eHalf, 0, eMax);
-    const p = clamp(frag.top + frag.height / 2 - pHalf, 0, pMax);
+    const e = blockTop + rel * blockHeight - eHalf;
+    const p = frag.top + frag.height / 2 - pHalf;
+
+    // Only keep centers that can actually sit on the viewport mid.
+    // Endpoints (0,0) and (eMax,pMax) cover the unreachable edges.
+    if (e <= 0 || e >= eMax || p <= 0 || p >= pMax) continue;
 
     editorAnchors.push(e);
     previewAnchors.push(p);
@@ -147,7 +151,6 @@ export function buildCenterScrollMap(
   previewAnchors[0] = 0;
   editorAnchors[editorAnchors.length - 1] = eMax;
   previewAnchors[previewAnchors.length - 1] = pMax;
-  // Re-monotone interior if endpoint reset collapsed the last step.
   for (let i = editorAnchors.length - 2; i >= 1; i--) {
     if (editorAnchors[i]! >= editorAnchors[i + 1]!) {
       editorAnchors[i] = editorAnchors[i + 1]! - EPSILON;
