@@ -1,7 +1,16 @@
+import { DEFAULT_SETTINGS, parseSettings, type PageSettings } from "./settings";
+
 const MAIN_MD = "main.md";
+const SETTINGS_JSON = "settings.json";
 
 export type OpenResult =
-  | { ok: true; fileHandle: FileSystemFileHandle; content: string }
+  | {
+      ok: true;
+      dirHandle: FileSystemDirectoryHandle;
+      fileHandle: FileSystemFileHandle;
+      content: string;
+      settings: PageSettings;
+    }
   | { ok: false; reason: "unsupported" | "cancelled" | "missing" | "error"; message: string };
 
 export type SaveResult =
@@ -12,7 +21,17 @@ export function supportsDirectoryPicker(): boolean {
   return typeof window !== "undefined" && "showDirectoryPicker" in window;
 }
 
-export async function openMainMarkdown(): Promise<OpenResult> {
+async function readSettings(dirHandle: FileSystemDirectoryHandle): Promise<PageSettings> {
+  try {
+    const handle = await dirHandle.getFileHandle(SETTINGS_JSON);
+    const text = await (await handle.getFile()).text();
+    return parseSettings(text);
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export async function openProject(): Promise<OpenResult> {
   if (!supportsDirectoryPicker()) {
     return {
       ok: false,
@@ -36,7 +55,8 @@ export async function openMainMarkdown(): Promise<OpenResult> {
 
     const file = await fileHandle.getFile();
     const content = await file.text();
-    return { ok: true, fileHandle, content };
+    const settings = await readSettings(dirHandle);
+    return { ok: true, dirHandle, fileHandle, content, settings };
   } catch (err) {
     if (isAbortError(err)) {
       return { ok: false, reason: "cancelled", message: "Folder selection was cancelled." };

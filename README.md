@@ -1,14 +1,15 @@
 # Vellum
 
-ローカルフォルダの `main.md` を編集する Markdown エディタ（STEP A）。
+ローカルフォルダの `main.md` を編集し、用紙単位でプレビューする Markdown エディタ（STEP B）。
 
-- CodeMirror 6 による編集（ハイライト / 検索置換）
-- 右側にライブ HTML プレビュー
+- CodeMirror 6 による編集
+- `settings.json` による用紙サイズ / 余白
+- Paged.js によるページ組版プレビュー
 - 論理アンカーによる双方向スクロール同期
 
 デモ: [https://senda64.github.io/vellum/](https://senda64.github.io/vellum/)
 
-Chrome / Edge で開き、`main.md` を含むフォルダを **Open Folder** で選択してください。サンプルは `example/` にあります。
+Chrome / Edge で開き、`example/` フォルダを **Open Folder** で選択してください。
 
 ## 開発
 

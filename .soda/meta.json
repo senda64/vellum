@@ -1,6 +1,6 @@
 {
   "title": "Vellum",
-  "description": "ローカル main.md のライブプレビュー付き Markdown エディタ（双方向スクロール同期）。",
+  "description": "用紙ページ組版プレビュー付きのローカル Markdown エディタ。",
   "category": "app",
   "visible": true,
   "featured": false

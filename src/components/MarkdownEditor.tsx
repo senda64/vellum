@@ -7,6 +7,7 @@ import {
   highlightActiveLineGutter,
   lineNumbers,
   drawSelection,
+  scrollPastEnd,
 } from "@codemirror/view";
 import {
   defaultKeymap,
@@ -29,6 +30,7 @@ type Props = {
   doc: string;
   onChange: (value: string) => void;
   onReady?: (view: EditorView) => void;
+  onScroll?: () => void;
 };
 
 const editorTheme = EditorView.theme({
@@ -64,13 +66,15 @@ const editorTheme = EditorView.theme({
   },
 });
 
-export default function MarkdownEditor({ doc, onChange, onReady }: Props) {
+export default function MarkdownEditor({ doc, onChange, onReady, onScroll }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   const onReadyRef = useRef(onReady);
+  const onScrollRef = useRef(onScroll);
   onChangeRef.current = onChange;
   onReadyRef.current = onReady;
+  onScrollRef.current = onScroll;
 
   useEffect(() => {
     if (!parentRef.current) return;
@@ -100,6 +104,7 @@ export default function MarkdownEditor({ doc, onChange, onReady }: Props) {
         ]),
         editorTheme,
         EditorView.lineWrapping,
+        scrollPastEnd(),
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString());
@@ -113,9 +118,13 @@ export default function MarkdownEditor({ doc, onChange, onReady }: Props) {
       parent: parentRef.current,
     });
     viewRef.current = view;
+
+    const onScrollDom = () => onScrollRef.current?.();
+    view.scrollDOM.addEventListener("scroll", onScrollDom, { passive: true });
     onReadyRef.current?.(view);
 
     return () => {
+      view.scrollDOM.removeEventListener("scroll", onScrollDom);
       view.destroy();
       viewRef.current = null;
     };
