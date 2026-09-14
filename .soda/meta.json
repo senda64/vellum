@@ -1,6 +1,6 @@
 {
   "title": "Vellum",
-  "description": "ローカルフォルダの main.md を読み書きする最小Markdownエディタ。",
+  "description": "ローカル main.md のライブプレビュー付き Markdown エディタ（双方向スクロール同期）。",
   "category": "app",
   "visible": true,
   "featured": false

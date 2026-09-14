@@ -1,6 +1,10 @@
 # Vellum
 
-ローカルフォルダを1つのドキュメントプロジェクトとして扱う Markdown エディタ（最小テスト版）。
+ローカルフォルダの `main.md` を編集する Markdown エディタ（STEP A）。
+
+- CodeMirror 6 による編集（ハイライト / 検索置換）
+- 右側にライブ HTML プレビュー
+- 論理アンカーによる双方向スクロール同期
 
 デモ: [https://senda64.github.io/vellum/](https://senda64.github.io/vellum/)
 
