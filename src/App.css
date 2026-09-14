@@ -1,0 +1,178 @@
+.page {
+  min-height: 100vh;
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.sheet {
+  position: relative;
+  isolation: isolate;
+  min-height: calc(100vh - 2 * clamp(0.75rem, 2vw, 1.25rem));
+  overflow: hidden;
+  border-radius: 2px;
+  background:
+    linear-gradient(165deg, #f3efe6 0%, #e7e1d4 48%, #ddd4c4 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.55) inset,
+    0 24px 60px rgba(48, 42, 32, 0.18);
+  cursor: crosshair;
+  animation: sheet-in 0.9s ease both;
+}
+
+.grain {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(circle at 20% 30%, rgba(90, 70, 40, 0.08), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(60, 80, 70, 0.07), transparent 45%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+}
+
+.hero {
+  position: relative;
+  z-index: 1;
+  max-width: 34rem;
+  padding: clamp(3.5rem, 12vh, 7rem) clamp(1.5rem, 5vw, 4rem);
+  pointer-events: none;
+  animation: rise 1s 0.15s ease both;
+}
+
+.brand {
+  margin: 0 0 1.1rem;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: clamp(3.4rem, 10vw, 5.6rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+  color: #1d2a28;
+}
+
+h1 {
+  margin: 0 0 0.85rem;
+  max-width: 16ch;
+  font-family: "Newsreader", Georgia, serif;
+  font-size: clamp(1.35rem, 3.4vw, 1.85rem);
+  font-weight: 500;
+  line-height: 1.35;
+  color: #2a3532;
+}
+
+.lede {
+  margin: 0 0 1.75rem;
+  max-width: 32ch;
+  font-size: 1.02rem;
+  line-height: 1.65;
+  color: #4d5853;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  pointer-events: auto;
+}
+
+button {
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0.7rem 1.15rem;
+  transition:
+    transform 0.18s ease,
+    background 0.18s ease,
+    border-color 0.18s ease,
+    opacity 0.18s ease;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.primary {
+  border: 1px solid #1d2a28;
+  background: #1d2a28;
+  color: #f4f0e7;
+}
+
+.primary:hover {
+  background: #2a3d39;
+  border-color: #2a3d39;
+}
+
+.ghost {
+  border: 1px solid rgba(29, 42, 40, 0.28);
+  background: transparent;
+  color: #1d2a28;
+}
+
+.ghost:hover:not(:disabled) {
+  border-color: rgba(29, 42, 40, 0.55);
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.ghost:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.blot {
+  pointer-events: none;
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--size);
+  height: var(--size);
+  translate: -50% -50%;
+  border-radius: 58% 42% 55% 45% / 48% 52% 48% 52%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    hsla(var(--hue), 28%, 28%, 0.55),
+    hsla(var(--hue), 32%, 18%, 0.42) 55%,
+    transparent 72%
+  );
+  filter: blur(0.4px);
+  animation: blot-in 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  mix-blend-mode: multiply;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes blot-in {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (max-width: 640px) {
+  .hero {
+    padding-top: clamp(2.5rem, 10vh, 4rem);
+  }
+}
