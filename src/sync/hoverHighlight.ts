@@ -117,8 +117,21 @@ export type PairHoverController = {
   destroy: () => void;
 };
 
+function nearestScrollPort(el: HTMLElement): HTMLElement | null {
+  let cur: HTMLElement | null = el;
+  while (cur) {
+    const { overflowY } = getComputedStyle(cur);
+    if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
+      return cur;
+    }
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
 /**
  * Bidirectional hover: highlight the same logical block in editor + preview.
+ * Re-hit-tests on scroll so the pair stays correct while the pointer is still.
  */
 export function attachPairHover(options: {
   view: EditorView;
@@ -126,8 +139,12 @@ export function attachPairHover(options: {
   getBlocks: () => AnchorBlock[];
 }): PairHoverController {
   const { view, previewRoot, getBlocks } = options;
+  const previewScroll = nearestScrollPort(previewRoot) ?? previewRoot;
   let currentId: string | null = null;
   let raf = 0;
+  let over: "editor" | "preview" | null = null;
+  let lastX = 0;
+  let lastY = 0;
 
   const apply = (blockId: string | null) => {
     if (blockId === currentId) return;
@@ -146,20 +163,58 @@ export function attachPairHover(options: {
     });
   };
 
+  const hitTest = () => {
+    if (over === "editor") {
+      schedule(
+        blockFromEditorPointer(view, getBlocks(), lastX, lastY)?.id ?? null,
+      );
+      return;
+    }
+    if (over === "preview") {
+      const el = document.elementFromPoint(lastX, lastY);
+      if (!el || !previewRoot.contains(el)) {
+        schedule(null);
+        return;
+      }
+      schedule(blockIdFromPreviewTarget(el));
+    }
+  };
+
   const onPreviewMove = (event: PointerEvent) => {
+    over = "preview";
+    lastX = event.clientX;
+    lastY = event.clientY;
     schedule(blockIdFromPreviewTarget(event.target));
   };
-  const onPreviewLeave = () => schedule(null);
+  const onPreviewLeave = () => {
+    over = null;
+    schedule(null);
+  };
 
   const onEditorMove = (event: PointerEvent) => {
-    schedule(blockFromEditorPointer(view, getBlocks(), event.clientX, event.clientY)?.id ?? null);
+    over = "editor";
+    lastX = event.clientX;
+    lastY = event.clientY;
+    schedule(
+      blockFromEditorPointer(view, getBlocks(), event.clientX, event.clientY)?.id ??
+        null,
+    );
   };
-  const onEditorLeave = () => schedule(null);
+  const onEditorLeave = () => {
+    over = null;
+    schedule(null);
+  };
+
+  const onScroll = () => {
+    if (over) hitTest();
+  };
 
   previewRoot.addEventListener("pointermove", onPreviewMove);
   previewRoot.addEventListener("pointerleave", onPreviewLeave);
   view.scrollDOM.addEventListener("pointermove", onEditorMove);
   view.scrollDOM.addEventListener("pointerleave", onEditorLeave);
+  view.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
+  previewScroll.addEventListener("scroll", onScroll, { passive: true });
 
   return {
     setBlockId: apply,
@@ -169,6 +224,8 @@ export function attachPairHover(options: {
       previewRoot.removeEventListener("pointerleave", onPreviewLeave);
       view.scrollDOM.removeEventListener("pointermove", onEditorMove);
       view.scrollDOM.removeEventListener("pointerleave", onEditorLeave);
+      view.scrollDOM.removeEventListener("scroll", onScroll);
+      previewScroll.removeEventListener("scroll", onScroll);
       apply(null);
     },
   };

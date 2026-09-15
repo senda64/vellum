@@ -119,16 +119,12 @@ export function findBlockBySourcePos(
   blocks: AnchorBlock[],
   sourcePos: number,
 ): AnchorBlock | null {
-  if (blocks.length === 0) return null;
-
   for (const block of blocks) {
     if (sourcePos >= block.sourceStart && sourcePos < block.sourceEnd) {
       return block;
     }
   }
-
-  if (sourcePos <= blocks[0]!.sourceStart) return blocks[0]!;
-  return blocks[blocks.length - 1]!;
+  return null;
 }
 
 export function sourcePosFromLogical(
