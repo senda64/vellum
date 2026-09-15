@@ -3,8 +3,6 @@ import { EditorState } from "@codemirror/state";
 import {
   EditorView,
   keymap,
-  highlightActiveLine,
-  highlightActiveLineGutter,
   lineNumbers,
   drawSelection,
 } from "@codemirror/view";
@@ -24,6 +22,7 @@ import {
   indentOnInput,
   syntaxHighlighting,
 } from "@codemirror/language";
+import { hoverHighlightExtension } from "../sync/hoverHighlight";
 
 type Props = {
   doc: string;
@@ -55,12 +54,6 @@ const editorTheme = EditorView.theme({
     border: "none",
     borderRight: "1px solid #eee",
   },
-  ".cm-activeLine": {
-    backgroundColor: "#f5f5f5",
-  },
-  ".cm-activeLineGutter": {
-    backgroundColor: "#f0f0f0",
-  },
   "&.cm-focused": {
     outline: "none",
   },
@@ -83,8 +76,6 @@ export default function MarkdownEditor({ doc, onChange, onReady, onScroll }: Pro
       doc,
       extensions: [
         lineNumbers(),
-        highlightActiveLineGutter(),
-        highlightActiveLine(),
         history(),
         foldGutter(),
         drawSelection(),
@@ -103,6 +94,7 @@ export default function MarkdownEditor({ doc, onChange, onReady, onScroll }: Pro
           ...searchKeymap,
         ]),
         editorTheme,
+        hoverHighlightExtension,
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {

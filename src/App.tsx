@@ -8,6 +8,7 @@ import type { FragmentMap } from "./markdown/types";
 import { exportPreviewAsPdf } from "./pdf/exportPdf";
 import { DEFAULT_SETTINGS, parseSettings, type PageSettings } from "./settings";
 import { buildCenterScrollMap, type CenterScrollMap } from "./sync/centerMap";
+import { attachPairHover, type PairHoverController } from "./sync/hoverHighlight";
 import {
   logicalFromEditor,
   logicalFromPreview,
@@ -37,6 +38,7 @@ export default function App() {
   const pendingOriginRef = useRef<SyncOrigin>(null);
   const previewTimerRef = useRef<number | null>(null);
   const panesRef = useRef<HTMLDivElement | null>(null);
+  const pairHoverRef = useRef<PairHoverController | null>(null);
 
   const [content, setContent] = useState("");
   const [previewSource, setPreviewSource] = useState("");
@@ -46,6 +48,7 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [hasFile, setHasFile] = useState(false);
   const [layoutUpdating, setLayoutUpdating] = useState(false);
+  const [hoverBindKey, setHoverBindKey] = useState(0);
   const supported = supportsDirectoryPicker();
 
   const anchorMap = useMemo(() => buildAnchorMap(previewSource), [previewSource]);
@@ -178,6 +181,25 @@ export default function App() {
       if (timer != null) window.clearTimeout(timer);
     };
   }, [hasFile, rebuildCenterMap, runSync]);
+
+  useEffect(() => {
+    if (!hasFile || layoutUpdating) return;
+    const view = editorViewRef.current;
+    const previewRoot = previewHandleRef.current?.getPagesEl() ?? null;
+    if (!view || !previewRoot) return;
+
+    pairHoverRef.current?.destroy();
+    pairHoverRef.current = attachPairHover({
+      view,
+      previewRoot,
+      getBlocks: () => fragmentMapRef.current?.blocks ?? anchorMap.blocks,
+    });
+
+    return () => {
+      pairHoverRef.current?.destroy();
+      pairHoverRef.current = null;
+    };
+  }, [hasFile, layoutUpdating, hoverBindKey, anchorMap.blocks]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -343,6 +365,7 @@ export default function App() {
       rebuildCenterMap();
     }
     setLayoutUpdating(false);
+    setHoverBindKey((n) => n + 1);
 
     const syncNow = () => {
       const view = editorViewRef.current;
@@ -434,6 +457,7 @@ export default function App() {
                 onScroll={handleEditorScroll}
                 onReady={(view) => {
                   editorViewRef.current = view;
+                  setHoverBindKey((n) => n + 1);
                   if (layoutReadyRef.current && fragmentMapRef.current) {
                     rebuildCenterMap();
                     runSync("editor");

@@ -197,6 +197,11 @@ button:disabled {
   margin-bottom: 0 !important;
 }
 
+.vellum-block.vellum-hover-pair {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 2px;
+}
+
 .status-layout {
   color: #777;
   font-weight: 400;
