@@ -10,6 +10,8 @@ import type { PageSettings } from "../settings";
 
 export type PagePreviewHandle = {
   getScrollEl: () => HTMLDivElement | null;
+  /** Visible Paged.js mount (unscaled page boxes live under `.pages-stage`). */
+  getPagesEl: () => HTMLDivElement | null;
 };
 
 type Props = {
@@ -52,6 +54,7 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
 
   useImperativeHandle(ref, () => ({
     getScrollEl: () => scrollRef.current,
+    getPagesEl: () => visibleRef.current,
   }));
 
   useEffect(() => {

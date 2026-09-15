@@ -92,7 +92,7 @@ export function buildPageCss(settings: PageSettings): string {
 
 .vellum-doc {
   color: #111;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: Inter, "Helvetica Neue", Arial, sans-serif;
   font-size: 11pt;
   line-height: 1.55;
 }
@@ -144,14 +144,14 @@ export function buildPageCss(settings: PageSettings): string {
   padding: 0.7em 0.85em;
   overflow: hidden;
   background: #f5f5f5;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   font-size: 0.85em;
   line-height: 1.45;
   white-space: pre-wrap;
 }
 
 .vellum-doc code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
   font-size: 0.9em;
 }
 

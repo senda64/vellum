@@ -5,6 +5,7 @@ import PagePreview, { type PagePreviewHandle } from "./components/PagePreview";
 import { openProject, saveMainMarkdown, supportsDirectoryPicker } from "./fs";
 import { buildAnchorMap } from "./markdown/render";
 import type { FragmentMap } from "./markdown/types";
+import { exportPreviewAsPdf } from "./pdf/exportPdf";
 import { DEFAULT_SETTINGS, parseSettings, type PageSettings } from "./settings";
 import { buildCenterScrollMap, type CenterScrollMap } from "./sync/centerMap";
 import {
@@ -289,6 +290,35 @@ export default function App() {
     }
   }
 
+  async function handleExportPdf() {
+    const pagesRoot = previewHandleRef.current?.getPagesEl() ?? null;
+    if (!pagesRoot) {
+      setError("Preview is not ready.");
+      return;
+    }
+    setError(null);
+    setBusy(true);
+    try {
+      const titleMatch = content.match(/^#\s+(.+)$/m);
+      const slug = (titleMatch?.[1] ?? "vellum")
+        .trim()
+        .replace(/[^\w\u3040-\u30ff\u3400-\u9fff\- ]+/g, "")
+        .replace(/\s+/g, "-")
+        .slice(0, 60);
+      const result = await exportPreviewAsPdf({
+        pagesRoot,
+        settings,
+        suggestedName: `${slug || "vellum"}.pdf`,
+      });
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleChange(value: string) {
     setContent(value);
     if (hasFile) setStatus("unsaved");
@@ -370,6 +400,14 @@ export default function App() {
               disabled={busy || !hasFile || status !== "unsaved"}
             >
               Save
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={handleExportPdf}
+              disabled={busy || !hasFile || layoutUpdating}
+            >
+              Export PDF
             </button>
           </div>
         </div>

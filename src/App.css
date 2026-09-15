@@ -186,15 +186,6 @@ button:disabled {
   display: block;
 }
 
-/* Offscreen buffer for double-buffered Paged.js layout */
-.pages-render-buffer {
-  position: absolute;
-  left: -10000px;
-  top: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
 /* Distinct sheets with gaps (not continuous HTML) */
 .pages-render .pagedjs_page {
   background: #fff;

@@ -11,6 +11,13 @@ interface Window {
     mode?: "read" | "readwrite";
     startIn?: FileSystemHandle | WellKnownDirectory;
   }): Promise<FileSystemDirectoryHandle>;
+  showSaveFilePicker(options?: {
+    suggestedName?: string;
+    types?: Array<{
+      description?: string;
+      accept: Record<string, string[]>;
+    }>;
+  }): Promise<FileSystemFileHandle>;
 }
 
 type WellKnownDirectory =
