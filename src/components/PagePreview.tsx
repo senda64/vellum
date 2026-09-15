@@ -6,7 +6,7 @@ import {
   disposeStalePreviewer,
   renderPagedPreview,
 } from "../paged/layout";
-import type { PageSettings } from "../settings";
+import { pageDimensionsMm, type PageSettings } from "../settings";
 
 export type PagePreviewHandle = {
   getScrollEl: () => HTMLDivElement | null;
@@ -42,6 +42,7 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
   const onLayoutReadyRef = useRef(onLayoutReady);
   const blocksRef = useRef(blocks);
   const hasVisibleRef = useRef(false);
+  const suppressScrollRef = useRef(false);
 
   onScrollRef.current = onScroll;
   onLayoutStartRef.current = onLayoutStart;
@@ -60,7 +61,10 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const handle = () => onScrollRef.current?.();
+    const handle = () => {
+      if (suppressScrollRef.current) return;
+      onScrollRef.current?.();
+    };
     el.addEventListener("scroll", handle, { passive: true });
     return () => el.removeEventListener("scroll", handle);
   }, []);
@@ -81,6 +85,16 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
     // into the offscreen buffer, then swap atomically.
     (async () => {
       try {
+        // Absolute offscreen buffer collapses to 0×0 without an explicit width;
+        // Paged.js then hangs or emits empty pages and blocks the layout queue.
+        if (buffer.getBoundingClientRect().width < 1) {
+          await nextFrame();
+          if (cancelled || generation !== generationRef.current) return;
+          if (buffer.getBoundingClientRect().width < 1) {
+            throw new Error("Preview layout buffer has no width.");
+          }
+        }
+
         await renderPagedPreview(html, settings, buffer);
         if (cancelled || generation !== generationRef.current) return;
 
@@ -108,9 +122,7 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
 
         const available = Math.max(120, scroll.clientWidth - 48);
         const nextScale = Math.min(1, available / Math.max(1, width));
-        const scrollTop = scroll.scrollTop;
-        const prevMax = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
-        const scrollRatio = prevMax > 0 ? scrollTop / prevMax : 0;
+        const prevScrollTop = scroll.scrollTop;
 
         // Atomic swap: move new pages into the visible root.
         visible.replaceChildren(...Array.from(buffer.childNodes));
@@ -122,18 +134,38 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
         stage.style.transform = `scale(${nextScale})`;
         stage.style.transformOrigin = "top left";
 
+        // Apply sizer size synchronously so scrollHeight is correct before we
+        // touch scrollTop (React state update alone would lag a frame and jump).
+        const scaledH = height * nextScale;
+        const scaledW = width * nextScale;
+        const sizer = scroll.querySelector(".pages-sizer");
+        const clip = scroll.querySelector(".pages-clip");
+        if (sizer instanceof HTMLElement) sizer.style.height = `${scaledH}px`;
+        if (clip instanceof HTMLElement) {
+          clip.style.width = `${scaledW}px`;
+          clip.style.height = `${scaledH}px`;
+        }
+
         setStageSize({ width, height });
         setScale(nextScale);
 
         // Drop previous paged.js styles only after the new pages are visible.
         disposeStalePreviewer();
 
-        await nextFrame();
+        // Keep the same absolute scroll offset (clamped). Ratio restore + later
+        // editor sync was fighting and made the scrollbar jump on each keystroke.
+        const nextMax = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+        const nextScrollTop = Math.min(prevScrollTop, nextMax);
+        if (Math.abs(scroll.scrollTop - nextScrollTop) > 0.5) {
+          suppressScrollRef.current = true;
+          scroll.scrollTop = nextScrollTop;
+          requestAnimationFrame(() => {
+            suppressScrollRef.current = false;
+          });
+        }
+
         await nextFrame();
         if (cancelled || generation !== generationRef.current) return;
-
-        const nextMax = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
-        scroll.scrollTop = scrollRatio * nextMax;
 
         const map = buildFragmentMap(scroll, blocksRef.current);
         onLayoutReadyRef.current?.(map);
@@ -190,32 +222,43 @@ const PagePreview = forwardRef<PagePreviewHandle, Props>(function PagePreview(
 
   const scaledHeight = stageSize.height * scale;
   const scaledWidth = stageSize.width * scale;
+  const pageMm = pageDimensionsMm(settings);
 
   return (
-    <div className="preview-scroll" ref={scrollRef}>
-      {layoutError && (
-        <p className="notice notice-error" role="alert">
-          {layoutError}
-        </p>
-      )}
-      <div
-        className="pages-sizer"
-        style={{ height: stageSize.height ? scaledHeight : undefined }}
-      >
+    <div className="preview-root">
+      <div className="preview-scroll" ref={scrollRef}>
+        {layoutError && (
+          <p className="notice notice-error" role="alert">
+            {layoutError}
+          </p>
+        )}
         <div
-          className="pages-clip"
-          style={{
-            width: stageSize.width ? scaledWidth : undefined,
-            height: stageSize.height ? scaledHeight : undefined,
-          }}
+          className="pages-sizer"
+          style={{ height: stageSize.height ? scaledHeight : undefined }}
         >
-          <div className="pages-stage" ref={stageRef}>
-            <div className="pages-render" ref={visibleRef} />
+          <div
+            className="pages-clip"
+            style={{
+              width: stageSize.width ? scaledWidth : undefined,
+              height: stageSize.height ? scaledHeight : undefined,
+            }}
+          >
+            <div className="pages-stage" ref={stageRef}>
+              <div className="pages-render" ref={visibleRef} />
+            </div>
           </div>
         </div>
       </div>
-      {/* Offscreen layout target — kept in-document so Paged.js can measure. */}
-      <div className="pages-render pages-render-buffer" ref={bufferRef} aria-hidden="true" />
+      {/* Offscreen layout target — MUST stay outside .preview-scroll.
+          Absolute children still expand a scrollport's scrollHeight.
+          Needs an explicit width; otherwise the box collapses to 0 and
+          Paged.js emits empty pages. */}
+      <div
+        className="pages-render pages-render-buffer"
+        ref={bufferRef}
+        aria-hidden="true"
+        style={{ width: `${pageMm.width}mm` }}
+      />
     </div>
   );
 });

@@ -23,7 +23,9 @@ import "./App.css";
 type SaveStatus = "saved" | "unsaved" | null;
 type SyncOrigin = "editor" | "preview" | null;
 
-const PREVIEW_DEBOUNCE_MS = 280;
+const PREVIEW_DEBOUNCE_MS = 90;
+/** While typing continuously, still refresh the preview at least this often. */
+const PREVIEW_MAX_WAIT_MS = 360;
 
 export default function App() {
   const fileHandleRef = useRef<FileSystemFileHandle | null>(null);
@@ -32,13 +34,16 @@ export default function App() {
   const fragmentMapRef = useRef<FragmentMap | null>(null);
   const centerMapRef = useRef<CenterScrollMap | null>(null);
   const layoutReadyRef = useRef(false);
+  const layoutUpdatingRef = useRef(false);
   const syncOriginRef = useRef<SyncOrigin>(null);
   const syncUnlockTimerRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const pendingOriginRef = useRef<SyncOrigin>(null);
   const previewTimerRef = useRef<number | null>(null);
+  const previewQueuedAtRef = useRef<number | null>(null);
   const panesRef = useRef<HTMLDivElement | null>(null);
   const pairHoverRef = useRef<PairHoverController | null>(null);
+  const exportHintTimerRef = useRef<number | null>(null);
 
   const [content, setContent] = useState("");
   const [previewSource, setPreviewSource] = useState("");
@@ -49,6 +54,7 @@ export default function App() {
   const [hasFile, setHasFile] = useState(false);
   const [layoutUpdating, setLayoutUpdating] = useState(false);
   const [hoverBindKey, setHoverBindKey] = useState(0);
+  const [exportHint, setExportHint] = useState<string | null>(null);
   const supported = supportsDirectoryPicker();
 
   const anchorMap = useMemo(() => buildAnchorMap(previewSource), [previewSource]);
@@ -138,6 +144,7 @@ export default function App() {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
       if (previewTimerRef.current != null) window.clearTimeout(previewTimerRef.current);
       if (syncUnlockTimerRef.current != null) window.clearTimeout(syncUnlockTimerRef.current);
+      if (exportHintTimerRef.current != null) window.clearTimeout(exportHintTimerRef.current);
     };
   }, []);
 
@@ -164,10 +171,13 @@ export default function App() {
     if (!panes) return;
     let timer: number | null = null;
     const schedule = () => {
+      // Preview layout briefly changes metrics; remapping+syncing mid-layout
+      // fights scrollTop preserve and makes the scrollbar vibrate.
+      if (layoutUpdatingRef.current) return;
       if (timer != null) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
         timer = null;
-        if (!layoutReadyRef.current) return;
+        if (!layoutReadyRef.current || layoutUpdatingRef.current) return;
         rebuildCenterMap();
         runSync("editor");
       }, 80);
@@ -265,11 +275,20 @@ export default function App() {
   }
 
   function queuePreviewUpdate(value: string) {
+    const now = performance.now();
+    if (previewQueuedAtRef.current == null) previewQueuedAtRef.current = now;
+
     if (previewTimerRef.current != null) window.clearTimeout(previewTimerRef.current);
+
+    const waited = now - previewQueuedAtRef.current;
+    // Flush immediately if we've already deferred for MAX_WAIT; otherwise debounce keystrokes.
+    const waitMs = waited >= PREVIEW_MAX_WAIT_MS ? 0 : PREVIEW_DEBOUNCE_MS;
+
     previewTimerRef.current = window.setTimeout(() => {
       previewTimerRef.current = null;
+      previewQueuedAtRef.current = null;
       setPreviewSource(value);
-    }, PREVIEW_DEBOUNCE_MS);
+    }, waitMs);
   }
 
   async function handleOpen() {
@@ -312,10 +331,24 @@ export default function App() {
     }
   }
 
+  function showExportHint(message: string) {
+    setExportHint(message);
+    if (exportHintTimerRef.current != null) window.clearTimeout(exportHintTimerRef.current);
+    exportHintTimerRef.current = window.setTimeout(() => {
+      exportHintTimerRef.current = null;
+      setExportHint(null);
+    }, 1600);
+  }
+
   async function handleExportPdf() {
+    if (layoutUpdating) {
+      showExportHint("Preview is updating…");
+      return;
+    }
+
     const pagesRoot = previewHandleRef.current?.getPagesEl() ?? null;
     if (!pagesRoot) {
-      setError("Preview is not ready.");
+      showExportHint("Preview is not ready…");
       return;
     }
     setError(null);
@@ -355,6 +388,7 @@ export default function App() {
   function handleLayoutStart() {
     // Keep the previous fragment map and sync active until the new layout
     // swaps in — avoids blank preview and sync dead-zones while paging.
+    layoutUpdatingRef.current = true;
     setLayoutUpdating(true);
   }
 
@@ -364,27 +398,14 @@ export default function App() {
       layoutReadyRef.current = true;
       rebuildCenterMap();
     }
+    layoutUpdatingRef.current = false;
     setLayoutUpdating(false);
     setHoverBindKey((n) => n + 1);
 
-    const syncNow = () => {
-      const view = editorViewRef.current;
-      const preview = getPreviewEl();
-      const scrollMap = ensureCenterMap();
-      if (view && preview && scrollMap && layoutReadyRef.current) {
-        lockSync("editor");
-        syncPreviewFromEditor(view, preview, scrollMap);
-      }
-    };
-    syncNow();
-    // CodeMirror may still be settling line wraps; rebuild once metrics stabilize.
+    // Do not force preview scroll here — remapping on every keystroke made the
+    // scrollbar jump. Keep the preserved offset; the next user scroll re-syncs.
     requestAnimationFrame(() => {
       rebuildCenterMap();
-      syncNow();
-      window.setTimeout(() => {
-        rebuildCenterMap();
-        syncNow();
-      }, 120);
     });
   }
 
@@ -400,12 +421,6 @@ export default function App() {
           >
             {status === "saved" && "Saved"}
             {status === "unsaved" && "Unsaved changes"}
-            {layoutUpdating && (
-              <span className="status-layout">
-                {status ? " · " : null}
-                Updating layout…
-              </span>
-            )}
           </span>
           <div className="actions">
             <button
@@ -424,14 +439,21 @@ export default function App() {
             >
               Save
             </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={handleExportPdf}
-              disabled={busy || !hasFile || layoutUpdating}
-            >
-              Export PDF
-            </button>
+            <div className="export-wrap">
+              <button
+                type="button"
+                className="ghost"
+                onClick={handleExportPdf}
+                disabled={busy || !hasFile}
+              >
+                Export PDF
+              </button>
+              {exportHint && (
+                <p className="export-hint" role="status">
+                  {exportHint}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </header>

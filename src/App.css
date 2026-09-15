@@ -47,6 +47,29 @@
 .actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+
+.export-wrap {
+  position: relative;
+}
+
+.export-hint {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #555;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  pointer-events: none;
 }
 
 button {
@@ -157,13 +180,30 @@ button:disabled {
   height: 100%;
 }
 
+.preview-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  background: #e8e8e8;
+}
+
 .preview-scroll {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 0;
   background: #e8e8e8;
-  position: relative;
+}
+
+/* Outside the scrollport so Paged.js fill never inflates scrollHeight.
+   Keep visible (just offscreen) — visibility:hidden breaks Paged.js sizing. */
+.pages-render-buffer {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  pointer-events: none;
 }
 
 .pages-sizer {
@@ -200,11 +240,6 @@ button:disabled {
 .vellum-block.vellum-hover-pair {
   background: rgba(0, 0, 0, 0.04);
   border-radius: 2px;
-}
-
-.status-layout {
-  color: #777;
-  font-weight: 400;
 }
 
 @media (max-width: 900px) {
